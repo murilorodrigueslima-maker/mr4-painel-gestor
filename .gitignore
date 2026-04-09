@@ -1,0 +1,10 @@
+.streamlit/secrets.toml
+*.db
+*.db-shm
+*.db-wal
+__pycache__/
+*.pyc
+.env
+logs/
+exports/
+.DS_Store

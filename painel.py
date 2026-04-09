@@ -15,8 +15,11 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 import uuid
-from database import get_connection
+from database import get_connection, init_db
 from sync import sync_produtos, sync_vendas, sync_financeiro, atualiza_stats_clientes
+
+# ── garante que o banco e as tabelas existem ───────────────────────────────────
+init_db()
 
 # ── página ─────────────────────────────────────────────────────────────────────
 st.set_page_config(

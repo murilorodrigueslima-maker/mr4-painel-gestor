@@ -8,15 +8,26 @@ import time
 import logging
 from typing import Optional
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = os.getenv("GESTAOCLICK_BASE_URL", "https://api.gestaoclick.com")
-ACCESS_TOKEN = os.getenv("GESTAOCLICK_ACCESS_TOKEN")
-SECRET_TOKEN = os.getenv("GESTAOCLICK_SECRET_TOKEN")
+# Lê de st.secrets (Streamlit Cloud) ou os.getenv (local)
+def _get_secret(key: str, default: str = None) -> str:
+    try:
+        import streamlit as st
+        return st.secrets.get(key, os.getenv(key, default))
+    except Exception:
+        return os.getenv(key, default)
+
+BASE_URL     = _get_secret("GESTAOCLICK_BASE_URL", "https://api.gestaoclick.com")
+ACCESS_TOKEN = _get_secret("GESTAOCLICK_ACCESS_TOKEN")
+SECRET_TOKEN = _get_secret("GESTAOCLICK_SECRET_TOKEN")
 
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # segundos

@@ -1332,6 +1332,38 @@ with tab_estoque:
         )
 
         # ── Funções locais de equivalência ────────────────────────────────────
+        import json, base64
+
+        _EQUIV_JSON_PATH = Path(__file__).parent / "data" / "equivalencias.json"
+        _GH_REPO  = "murilorodrigueslima-maker/mr4-painel-gestor"
+        _GH_FILE  = "data/equivalencias.json"
+
+        def _get_gh_token():
+            try:
+                return st.secrets.get("GITHUB_TOKEN", "")
+            except Exception:
+                return ""
+
+        def _salvar_equiv_github(c):
+            """Persiste equivalências no JSON do repositório via GitHub API."""
+            token = _get_gh_token()
+            if not token:
+                return
+            rows = c.execute("SELECT grupo_id, produto_id, criado_em FROM equivalencias").fetchall()
+            data = [{"grupo_id": r["grupo_id"], "produto_id": r["produto_id"], "criado_em": r["criado_em"]} for r in rows]
+            content = json.dumps(data, ensure_ascii=False) + "\n"
+            encoded = base64.b64encode(content.encode()).decode()
+            headers = {"Authorization": f"token {token}", "Content-Type": "application/json"}
+            api_url = f"https://api.github.com/repos/{_GH_REPO}/contents/{_GH_FILE}"
+            # pega o sha atual do arquivo
+            import requests as _req
+            r = _req.get(api_url, headers=headers)
+            sha = r.json().get("sha", "") if r.ok else ""
+            body = {"message": "auto: atualiza equivalencias.json", "content": encoded}
+            if sha:
+                body["sha"] = sha
+            _req.put(api_url, headers=headers, json=body)
+
         def _init_equiv():
             c = get_connection()
             c.execute("""CREATE TABLE IF NOT EXISTS equivalencias (
@@ -1341,6 +1373,16 @@ with tab_estoque:
                 UNIQUE(grupo_id, produto_id))""")
             c.execute("CREATE INDEX IF NOT EXISTS idx_equiv_grupo ON equivalencias(grupo_id)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_equiv_produto ON equivalencias(produto_id)")
+            # carrega seed do JSON se a tabela estiver vazia
+            count = c.execute("SELECT COUNT(*) as n FROM equivalencias").fetchone()["n"]
+            if count == 0 and _EQUIV_JSON_PATH.exists():
+                try:
+                    seed = json.loads(_EQUIV_JSON_PATH.read_text())
+                    for row in seed:
+                        c.execute("INSERT OR IGNORE INTO equivalencias (grupo_id, produto_id, criado_em) VALUES (?,?,?)",
+                                  (row["grupo_id"], str(row["produto_id"]), row.get("criado_em", "")))
+                except Exception:
+                    pass
             c.commit(); c.close()
 
         @st.cache_data(ttl=60)
@@ -1377,7 +1419,9 @@ with tab_estoque:
             for pid in ids:
                 c.execute("INSERT OR IGNORE INTO equivalencias (grupo_id, produto_id) VALUES (?,?)",
                           (gid, pid))
-            c.commit(); c.close()
+            c.commit()
+            _salvar_equiv_github(c)
+            c.close()
             return gid
 
         def _remover_membro(produto_id):
@@ -1392,13 +1436,17 @@ with tab_estoque:
                                   (gid,)).fetchone()["n"]
             if restantes < 2:
                 c.execute("DELETE FROM equivalencias WHERE grupo_id=?", (gid,))
-            c.commit(); c.close()
+            c.commit()
+            _salvar_equiv_github(c)
+            c.close()
 
         def _add_membro(gid, pid):
             c = get_connection()
             c.execute("INSERT OR IGNORE INTO equivalencias (grupo_id, produto_id) VALUES (?,?)",
                       (gid, pid))
-            c.commit(); c.close()
+            c.commit()
+            _salvar_equiv_github(c)
+            c.close()
 
         _init_equiv()
 

@@ -9,6 +9,15 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import date, timedelta, datetime
+from zoneinfo import ZoneInfo
+
+_TZ_BR = ZoneInfo("America/Fortaleza")
+
+def _agora_br():
+    return datetime.now(_TZ_BR)
+
+def _hoje_br():
+    return _agora_br().date()
 
 _HERE = Path(__file__).parent.resolve()
 if str(_HERE) not in sys.path:
@@ -294,10 +303,9 @@ def ultimo_sync():
 
 def rodar_sync():
     """Sync incremental: produtos + vendas recentes + financeiro."""
-    from datetime import date, timedelta
-    hoje = date.today().isoformat()
-    ontem = (date.today() - timedelta(days=2)).isoformat()
-    fim_fin = (date.today() + timedelta(days=90)).isoformat()
+    hoje = _hoje_br().isoformat()
+    ontem = (_hoje_br() - timedelta(days=2)).isoformat()
+    fim_fin = (_hoje_br() + timedelta(days=90)).isoformat()
     sync_produtos()
     sync_vendas(data_inicio=ontem, data_fim=hoje)
     sync_financeiro(data_inicio=ontem, data_fim=fim_fin)
@@ -321,7 +329,7 @@ def estoque_badge(estoque, minimo):
 # ── dados: visão geral ─────────────────────────────────────────────────────────
 def carregar_dados():
     conn = get_connection()
-    hoje = date.today()
+    hoje = _hoje_br()
     ontem = hoje - timedelta(days=1)
     semana_inicio = hoje - timedelta(days=hoje.weekday())
     mes_str = hoje.strftime('%Y-%m')
@@ -443,7 +451,7 @@ def carregar_dados():
     projecao = fat_mes['fat'] / dia_mes * 31 if dia_mes > 0 else 0
 
     return {
-        "hoje": date.today(),
+        "hoje": _hoje_br(),
         "fat_ontem": dict(fat_ontem),
         "fat_hoje": dict(fat_hoje),
         "fat_semana": dict(fat_semana),
@@ -604,7 +612,7 @@ d  = carregar_dados()
 de = carregar_estoque()
 
 hoje = d["hoje"]
-hora = datetime.now().strftime("%H:%M")
+hora = _agora_br().strftime("%H:%M")
 dia_semana_pt = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"]
 nome_dia = dia_semana_pt[hoje.weekday()]
 
@@ -744,7 +752,7 @@ with tab_geral:
         if fat_h == 0 and hoje.weekday() < 6:
             alertas.append(("red", "VENDAS", f"Nenhuma venda registrada hoje"))
 
-        if datetime.now().hour >= 12 and pct_dia < 50:
+        if _agora_br().hour >= 12 and pct_dia < 50:
             alertas.append(("yellow", "META", f"Abaixo de 50% da meta ({pct_dia:.0f}%) — já é meio-dia"))
 
         if d["contas_vencidas"]["total"] > 0:
